@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html>
+<!--
+Name: Rachel Higgins
+Class: CS 4183 Video Game Design
+Semester: Fall 2017
+Professor: David Cline
+Assignment: Sprint 1
+Goal: Create a basic game with sprites and sound effects.  This game is a shooter 
+      where the character must survive a for a certain amount of time win and defeat
+	  as many enemies as possible to earn points.  A boss must be defeated at the end to win.
+Credits:
+	Dragon Sprite: from http://bestanimations.com/Fantasy/Dragons/Dragons2.html
+	by Todd Lockwood for Dungeons & Dragons Draconomicon
+	Space Ship Sprite: from https://dribbble.com/shots/1658999-Space-ship-Game-Character-Sprite-Sheet-Animation
+	by bevouliin from Space Ship Game Character Sprite Sheet Animation
+	Fire Sprite: from http://spritefx.blogspot.com/2013/04/fire-sprites.html by cgman
+	Cloud Sprite: from https://forum.unity3d.com/threads/spritesharp-sprite-mesh-optimizer.327997/page-2
+	by ZimM?
+	Background: from http://spritefx.blogspot.com/2013/09/sprite-background-sky.html by cgman
+	Damage-To-Enemy Sound: from http://soundbible.com/1780-Bow-Fire-Arrow.html by Stephan Schutze
+	Damage-To-Dragon Sound: from http://soundbible.com/1552-T-Rex-Roar.html by levitb
+	Fire Sound: from http://soundbible.com/2127-Dragon-Fire-Breath-and-Roar.html by Daniel Simon
+	Win Sound: from http://soundbible.com/2030-Daydreaming.html by Lisa Redfern
+	Lose Sound: from http://soundbible.com/1658-Mirror-Breaking.html by Mike Koenig
+	Music: from https://www.bensound.com/royalty-free-music/track/enigmatic by Bensound Royalty-free music.
+ -->
+
+  <head>
+    <meta charset="UTF-8">
+    <title>Dragon Shooter</title>
+  </head>
+  <body style="background-color: darkred ">
+    <h1 style="font-names: Sylfaen; font-color: darkred; font-size: 36px;
+    text-align: center ">
+      Dragon Shooter Game</h1>
+    <p style="font-names: Sylfaen; font-color: purple; font-size: 20px;
+    text-align: center ">
+      The goal of this sidescrolling game is to last against 20 enemies for 30 seconds.  
+	  Use the arrow keys to move and the space key to
+	  shoot. If five health points are lost, the game is lost.  The score adds
+	  100 points for each enemy defeated making a high score of 2,000 possible.
+      <p>
+	  <p id="health" style="font-names: Sylfaen; font-size: 36px;text-align: center   ">Health Remaining:5</p>
+	  <p id="score" style="font-names: Sylfaen; font-size: 36px;text-align: center  ">Score:0</p>
+	  
+	  <p id="win" style="font-names: Sylfaen; font-size: 36px; text-align: center; display: none ">
+	  You won!</p>
+	  <p id="lose" style="font-names: Sylfaen; font-size: 36px; text-align: center; display: none ">
+	  You lost!</p>
+    <canvas id="myCanvas" width="900" height="600" style="padding: 0; margin: auto; 
+	display: block; overflow: hidden;"></canvas>
+	<img id="background" style="display:none" src="background.png"></img>
+    <img id="dragonImage" style="display:none" src="DragonWorld2.png"></img>
+	<img id="spaceShipImage" style="display:none" src="SpaceShip2.png"></img>
+	<img id="cloudImage" style="display:none" src="cloudSprite.png"></img>
+	<img id="fireImage" style="display:none" src="DragonFire.png"></img>
+	<audio id="damageSound"><source src="fireArrow.wav"></source></audio>
+	<audio id="damage2Sound"><source src="rexRoar.wav"></source></audio>
+	<audio id="attackSound"><source src="dragonRoarAndFire.wav"></source></audio>
+	<audio id="winSound"><source src="winSound.wav"></source></audio>
+	<audio id="loseSound"><source src="loseMirrorBreak.wav"></source></audio>
+	<audio id="music"><source src="enigmaticMusic.mp3"></source></audio>
+
+    <script>
+	//The variables holding the state of the canvas and its elements
+	var canvas;
+    var drawing;
+	//Holds the game objects and keeps time to decide if game is won.
+	var gameState;
+	var timer;
+	
+	//Draws a sprite when called, including background sprites.
+	var drawSprite = function(sprite)
+    {
+        drawing.drawImage(sprite.image, sprite.x, sprite.y, sprite.w, sprite.h);
+    }
+
+	//Draws the game, starting with the canvas and then its sprite elements.
+	var drawGame = function()
+	{
+		//Gets the canvas size,, colors it, and gives it a border.
+		var width = canvas.width;
+		var height = canvas.height;
+		drawing.fillStyle = "deepskyblue"; 
+		drawing.fillRect(0, 0 , width, height); 
+		drawing.strokeRect(0, 0, width, height); 
+		//Gets the background and draws it large enough to cover the visible canvas area.
+		var background = gameState.background; 
+		drawSprite(background);
+		//Gets the dragon sprite and draws two background sprite clouds.
+		var dragon = gameState.dragon; 
+		drawSprite(gameState.cloud);
+		drawSprite(gameState.cloud2);
+		
+		//Gets the enemy ship array and draws the ships.
+		var enemies = gameState.enemyShips;
+		for (var i =  0; i < enemies.length; i++)
+		{
+			drawSprite(enemies[i]);
+		}
+		//Draws the dragon and his flames upon attacking.
+		drawSprite(dragon);
+		var flame = gameState.fire;
+		for(var i = 0; i < flame.length; i++)
+		{
+			drawSprite(flame[i]);
+		}
+	}
+	
+	//Creates a sprite by taking an image, its location and velocity on the map,
+	//getting its size, creating its border, and returning it.
+	var makeSprite = function(spriteName, xLoc, yLoc, xVelocity, yVelocity)
+    {
+        var sprite = {};
+        sprite.image = document.getElementById(spriteName);
+        sprite.x = xLoc;
+        sprite.y = yLoc;
+        sprite.w = sprite.image.width;
+        sprite.h = sprite.image.height;
+        sprite.vx = xVelocity;
+        sprite.vy = yVelocity;
+		sprite.border = 0.0;
+        return sprite;
+    }
+	
+	//Moves the dragon depending on location.
+	var moveDragon = function(dragon)
+    {
+		dragon.x += dragon.vx;
+        dragon.y += dragon.vy;
+        
+		//If the dragon attempts to leave the canvas, its x and/or
+		//y axis values are set to be back in the canvas.
+        if (dragon.x < -dragon.w)
+        {
+            dragon.x = canvas.width;
+        } 
+        if (dragon.x > canvas.width)
+        {
+            dragon.x = 750;
+        }
+		if (dragon.x < 0)
+        {
+            dragon.x = 50;
+        }
+		if (dragon.y > canvas.height)
+        {
+            dragon.y = 510;
+        }
+		if (dragon.y < 0)
+        {
+            dragon.y = 50;
+        }
+    }
+	
+	//Moves the ship toward the left unless the ship(s) hit the canvas left edge.
+	var moveShip = function(ship)
+    {	
+		ship.x -= 1.0;
+		//If the left border is hit, it moves the ship out of the visible area.
+		//Note: ships are not erased as it can cause errors.
+		if (ship.x < 0)
+		{
+			ship.x = 100000;
+		}
+    }
+	
+	//Creates and returns sprite boundaries by getting their size.
+	var getCollisionBounds = function(sprite)
+    {
+        var boundaries = {};
+        var border = sprite.border;
+        boundaries.xmin = sprite.x + border;
+        boundaries.ymin = sprite.y + border;
+        boundaries.xmax = sprite.x + sprite.w - border;
+        boundaries.ymax = sprite.y + sprite.w - border;
+		//console.log("bound");
+        return boundaries;
+    }
+	
+	//Checks to see if a collision occurred between the dragon
+	//or his flames and the enemy ships.
+	var spritesCollide = function(spriteA, spriteB)
+    {
+        // collision bounds for spriteA and spriteB
+        var dragonOrFlame = getCollisionBounds(spriteA); 
+        var ship = getCollisionBounds(spriteB);
+
+        // ship is to the right or left of dragon/flame
+        if (ship.xmin > dragonOrFlame.xmax) return false;
+        if (ship.xmax < dragonOrFlame.xmin) return false;
+
+        // ship is above or below dragon/flame
+        if (ship.ymax < dragonOrFlame.ymin) return false;
+        if (ship.ymin > dragonOrFlame.ymax) return false;
+
+        return true;
+    }
+	
+	//Checks to see if the flame hits the ship.
+	var collideFlame = function(sprite)
+    {
+        var flame = gameState.fire[sprite];
+        var enemies = gameState.enemyShips;
+        for (var i=0; i < enemies.length; i++)
+        {
+			//If one of the ships is hit, it is moved out of visibility
+			//and points are added to the score.
+            if (spritesCollide(flame, enemies[i]))
+            {
+				enemies[i].x += 20000;
+				var damageSound = document.getElementById("damageSound");
+				damageSound.play();
+				gameState.score += 100;
+				var points = document.getElementById("score");
+				points.innerHTML = "Score:" + gameState.score;
+				//console.log("true");
+                return;
+            }
+        }
+    }
+	
+	//Checks to see if the dragon hits the ship.
+	var collideDragon = function(sprite)
+    {
+        var dragon = gameState.dragon;
+        var enemies = gameState.enemyShips;
+        for (var i=0; i < enemies.length; i++)
+        {
+			//If one of the ships is hit, it is moved out of visibility and health is lost.
+            if (spritesCollide(dragon, enemies[i]))
+            {
+				var damageSound = document.getElementById("damage2Sound");
+				damageSound.play();
+				enemies[i].x += 20000;
+				gameState.health -= 1;
+				var points = document.getElementById("health");
+				points.innerHTML = "Health:" + gameState.health;
+				//The game is lost if health reaches 0 or less.
+				if(gameState.health < 1)
+				{
+					lose(gameState.lose);
+				}
+                return;
+            }
+        }
+    }
+	
+	//Activates the lose sound and text, clears the canvas, timer,
+	//and event listeners and then reloads the screen to restart the game.
+	var lose = function(end)
+    {
+        document.getElementById("lose").style.display="block";
+		var loseSound = document.getElementById("loseSound");
+		loseSound.play();
+		clearInterval(timer);
+		window.removeEventListener("keydown", onKeyDown);
+		window.removeEventListener("keyup", onKeyUp);
+		drawing.clearRect(0, 0, canvas.width, canvas.height);
+		var refresh = setTimeout(reload, 5000); 
+		//console.log("Are we getting here?");
+		return true;
+    }
+	
+	//Activates the win sound and text, clears the canvas, timer,
+	//and event listeners and then reloads the screen to restart the game.
+	var win = function(end)
+    {
+        document.getElementById("win").style.display="block";
+		var winSound = document.getElementById("winSound");
+		winSound.play();		
+		clearInterval(timer);
+		window.removeEventListener("keydown", onKeyDown);
+		window.removeEventListener("keyup", onKeyUp);
+		drawing.clearRect(0, 0, canvas.width, canvas.height);
+		var refresh = setTimeout(reload, 5000); 
+		return true;
+    }
+	
+	//Reloads the screen to restart the game.
+	var reload = function()
+    {
+		location.reload();
+    }			
+	
+	//Calls all necessary actions and animations.
+	var animateGame = function()
+	{
+		// Call animateGame again in about 1/60 of a second
+		window.requestAnimationFrame(animateGame);
+		
+		var music = document.getElementById("music");
+		music.play();
+		
+		//Sets variables to the dragon and ship sprites, and allows
+		//the dragon to move.
+		var dragon = gameState.dragon;
+		var enemies = gameState.enemyShips; 
+		moveDragon(dragon);
+		//Checks for collisions between each ship and the dragon.
+		for(var i = 0; i < 20; i++)
+		{
+			var ship = gameState.enemyShips[i];
+			moveShip(ship);
+			collideDragon(dragon);
+		}
+		//Checks for collisions between each ship and the dragon's flames.
+		for (var flame = gameState.fire.length-1; flame >= 0; flame--)
+		{
+			collideFlame(flame);
+		}
+		//Player wins if the dragon survives 30 seconds.
+		timer = setTimeout(win, 30000);
+		//Draws each game frame.
+		drawGame();
+	}
+	
+	//Loads upon opening the game screen.
+	window.onload = function() 
+    {
+		//Key listeners for movement and attack controls.
+		window.addEventListener("keydown", onKeyDown);
+		window.addEventListener("keyup", onKeyUp);
+	
+        //Gets the canvas and a 2d "graphics context" for it.
+        canvas = document.getElementById("myCanvas");
+        drawing = canvas.getContext("2d");
+		
+		//Initializes gameState and gives it the sprites, health,
+		// and score variables.
+		gameState = {};
+		gameState.background = makeSprite("background",  0,  0,  0, 0);
+		gameState.dragon =  makeSprite("dragonImage",  10,  10,  0, 0);
+		gameState.cloud =  makeSprite("cloudImage",  500,  100,  0, 0);
+		gameState.cloud2 =  makeSprite("cloudImage",  200,  400,  0, 0);
+		gameState.fire =  [];
+		gameState.enemyShips = [];
+		gameState.health = 5;
+		gameState.score = 0;
+		//Creates the ship variables and randomly decides their height on the canvas.
+		for (var i = 0; i < 20; i++)
+		{
+			var y = (Math.random() * 500) + 50;
+			var ship = makeSprite("spaceShipImage", 400+110*i, y, 0, 0);
+			gameState.enemyShips.push(ship);
+		}
+		//Calls this to do basic actions each frame.
+        animateGame();
+    }
+	
+	//Movement and attack keys.
+	var onKeyDown = function(event)
+	{
+		//Allows the sprite to move in any direction.
+		var dragon = gameState.dragon;
+		if (event.keyCode == 37) 
+		{
+			dragon.vx = -10.0;
+		}
+		if (event.keyCode == 39) 
+		{
+			dragon.vx = 10.0;
+		}
+		if (event.keyCode == 40) 
+		{
+			dragon.vy = 10.0;
+		}
+		if (event.keyCode == 38) 
+		{
+			dragon.vy = -10.0;
+		}
+		//Allows the dragon to breathe fire.
+		if (event.keyCode == 32)
+		{
+			//Makes the flame and sets it to be in front of the dragon.
+			//A flame sound is made each time.
+			var flame = makeSprite("fireImage", 0, 0, 0, -10);
+			flame.x = dragon.x + dragon.w + 0.005 * flame.w;
+			flame.y = dragon.y + flame.h;
+			gameState.fire.push(flame);
+			var fireSound = document.getElementById("attackSound");
+			fireSound.play();
+			//Pops the flame if the array length is greater than one
+			//to prevent errors where extra flame sprites stay on the screen.
+			if(gameState.fire.length > 1)
+			{
+				gameState.fire.pop(flame);
+			}
+		}
+		console.log(event.keyCode);
+	}
+	
+	var onKeyUp = function(event)
+	{
+		//Stops the dragon from moving after the key is released.
+		var dragon = gameState.dragon;
+		if ((event.keyCode == 37) || (event.keyCode == 38) || 
+			(event.keyCode == 39) || (event.keyCode == 40))
+		{
+			dragon.vx = 0;
+			dragon.vy = 0;
+		}
+		//Pops the flame after the space key is released.
+		if (event.keyCode == 32)
+		{
+			gameState.fire.pop(0);
+		}
+		//console.log(event.keyCode);
+	}
+	
+	
+    </script>
+  </body>
+</html>
